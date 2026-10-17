@@ -88,8 +88,30 @@
   资源包 `mod/more_balls` 加载完成，**mod 相关 ERROR 为 0**
 - 与 JEI 19.57.0.451、AppleSkin 3.0.9、Curios 9.2.2 同环境启动无冲突
 
-### 待补
+### 后续补齐（同轮完成）
 
-- 组合球在物品栏的分片合成渲染、球堆图标 → 改 BEWLR
-- JEI 插件（配方展示）
-- 进世界后的功能实测（球飞行、热量、收纳袋、轮盘、成就）
+- **组合球与球堆的物品图标：已改用 1.21.1 的 BEWLR**（`BallIconRenderer`）。
+  组合球按 `combo_slot_1..4` 分别画四张 `<球id>_quarter_<q>.png` 叠加（透明像素自然合成整球）；
+  球堆摊开画壳里那颗球。26.2 的 `SpecialModelRenderer + SubmitNodeCollector#submitCustomGeometry`
+  在 1.21.1 不存在，这里改成从 `MultiBufferSource` 直接拿 `VertexConsumer` 手写双面顶点
+  （几何空间 0..16、提交前 `scale(1/16)`、背面顶点倒序但 UV 与正面一致）。
+  贴图 namespace **固定 `more_balls`、只取物品 path** —— 史莱姆球与末影珍珠是原版物品，
+  用它们的 namespace 会拼出不存在的路径（26.2 线上踩过「右下角史莱姆球不渲染」）。
+- **JEI 插件：已移植**（`compat/MoreBallsJeiPlugin`）。做两件事：
+  ① 给半球/四分之一球/组合球注册子类型解释器（按 `fragment_source` / `combo_sources`），
+  否则 JEI 会把它们全并成一颗木球；
+  ② 给两条组合球配方补 `ICraftingCategoryExtension` —— JEI 的工作台分类只显示
+  「注册过配方扩展」的配方类，而 `CustomRecipe` 子类不自带扩展（原版 `ShapedRecipe` 才有）。
+  1.21.1 的 JEI 19.x 没有 26.2 那套 `SlotDisplay`，外观改由 `setRecipe(holder, builder, helper, focuses)`
+  直接往布局里摆格子。
+
+### 未移植的一个类（不是漏项）
+
+- `BallTidyButton` —— 在 26.2 源码里它**没有任何外部引用**（孤立类，功能已废弃），
+  1.21.1 这版不移植它是对的。
+
+### 仍待实测（需进世界）
+
+- 球飞行手感、热量系统、收纳袋与弹药轮盘、成就触发
+- JEI 里的配方页与子类型条目的实际观感
+- 组合球 / 球堆的 BEWLR 图标在 GUI 与掉落物里的显示

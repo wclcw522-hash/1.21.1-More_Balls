@@ -122,6 +122,30 @@ public final class MoreBallsClient {
     }
 
     /**
+     * 组合球与球堆的图标渲染（BEWLR）。
+     *
+     * <p>26.2 那边走的是 {@code RegisterSpecialModelRendererEvent} +
+     * {@code minecraft:special} 模型；<b>1.21.1 没有这套</b>，
+     * 物品的自定义外观只能挂 {@code IClientItemExtensions#getCustomRenderer}
+     * —— 也就是 BEWLR。见 {@link BallIconRenderer}。</p>
+     */
+    @SubscribeEvent
+    public static void onRegisterClientExtensions(
+            net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent event) {
+        event.registerItem(new net.neoforged.neoforge.client.extensions.common.IClientItemExtensions() {
+            private BallIconRenderer renderer;
+
+            @Override
+            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (this.renderer == null) {
+                    this.renderer = BallIconRenderer.create();
+                }
+                return this.renderer;
+            }
+        }, ModItems.COMBO_BALL.get(), ModItems.BALL_CLUSTER.get());
+    }
+
+    /**
      * 蓄力等级显示 —— 位置在物品栏上方、物品名称上方（作者指定）。
      *
      * <p>只在「手里正拿着可蓄力的球并且正在蓄力」时出现。</p>
