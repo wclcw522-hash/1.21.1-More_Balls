@@ -4,6 +4,51 @@
 > 版本号从 `1.0.0.0` 起独立计数，四段式 `x.x.x.x`（功能 / 机制 / 物品 / 修复）。
 > 26.2 线的历史见另一个仓库的 `CHANGELOG.md`。
 
+## [1.0.0.2] - 2026-10-17
+
+### 修复：全部工作台配方与切割配方解析失败
+
+**现象**（`logs/latest.log`）：约 30 条
+`Parsing error loading recipe more_balls:<id>`，报错正文是
+
+```
+Map entry '#': Failed to parse either.
+  First: Not a json array: "minecraft:iron_block";
+  Second: Not a JSON object: "minecraft:iron_block"
+```
+
+**根因**：26.2 的 `Ingredient` 接受**字符串简写**（`"key": {"#": "minecraft:iron_block"}`），
+1.21.1 只接受**数组**（`["minecraft:iron_block"]`）或对象。移植时只改了 java，
+漏了数据文件这一层。
+
+**修法**：批量把 `key` 的字符串值转成单元素数组（26 个 shaped 配方），
+切割配方的 `ingredient` 同样处理（2 个）。转换后 JSON 全部通过语法校验，
+重跑客户端后 `Parsing error` 条数归零。
+
+### 修复：`#more_balls:ball_carriers` 标签加载失败
+
+标签里列了 `minecraft:creaking`（1.21.4+ 生物）与 `minecraft:parched`（26.2 才有），
+1.21.1 不存在这两个 id，整份标签加载被拒。已删掉，剩 17 个实体。
+
+### 修复：球堆物品在物品栏里完全隐形
+
+`models/item/ball_cluster.json` 的 fallback 指向 `ball_cluster_base`，
+而那张贴图 `ball_cluster_blank` 是 **1×1 空白**（日志有
+`Texture ... ball_cluster_blank with size 1x1 limits mip level`）。
+真正的外观由 `BallIconRenderer`（BEWLR）画，一旦 BEWLR 没生效，
+这个物品在物品栏里就是**看不见的**。已把 fallback 改成指向木球模型，兜底至少可见。
+
+### 新增：诊断日志（用于定位「耐久 / 球堆未生效」）
+
+- `[ball] 参数表就绪检查：木球 toughness=8，铜球 damage=10.0，铁球 toughness=99`
+  —— 确认 `BallBehavior.init()` 的数值表真的建起来了（客户端也打）。
+  实测结果：**表正常**，所以「耐久不生效」不是表空导致的。
+- `[ball] 扣耐久（cause）：8 -> 7/8` —— 每次真正扣耐久时打印。
+- `[ball] 扣耐久被跳过（cause）：实体 toughness=0` —— 实体上耐久没被初始化时打印，
+  这是最容易静默失效的一步。
+- 顺带把 `BallBehavior.init()` 包进 `FMLCommonSetupEvent#enqueueWork`（官方要求的写法，
+  并行阶段直接访问注册表有风险）。
+
 ## [1.0.0.1] - 2026-10-17
 
 ### 修复：没装 Curios 的实例一启动就崩

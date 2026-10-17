@@ -37,7 +37,21 @@ public class MoreBalls {
 
         // 属性表里要引用本模组的物品，必须等注册完成才能取到实例，
         // 所以 BallBehavior.init() 放到 common setup 阶段执行。
-        modEventBus.addListener((FMLCommonSetupEvent event) -> BallBehavior.init());
+        //
+        // ⚠️ 包一层 enqueueWork：FMLCommonSetupEvent 是**并行**触发的，
+        //    官方要求凡是要访问注册表/别的 mod 的东西都放在 enqueueWork 里跑。
+        //    直接调用时 init() 里的 ModItems.XXX.get() 可能在并行线程上拿不到东西，
+        //    整张表就建不起来 —— 表现是「所有球都走 DEFAULT：没有耐久、不扣耐久、
+        //    用过的球不被判成『用过的』」，一次坏一大片（2026-10-17 作者反馈）。
+        modEventBus.addListener((FMLCommonSetupEvent event) -> event.enqueueWork(() -> {
+            BallBehavior.init();
+            // 一行诊断：确认参数表真的建起来了，以及抽查两颗球的数值。
+            // 没有这行的话，「表空了」和「表正常」在日志里长得一模一样。
+            LOGGER.info("[ball] 参数表就绪检查：木球 toughness={}，铜球 damage={}，铁球 toughness={}",
+                    BallBehavior.profileFor(new net.minecraft.world.item.ItemStack(ModItems.WOODEN_BALL.get())).toughness(),
+                    BallBehavior.profileFor(new net.minecraft.world.item.ItemStack(ModItems.COPPER_BALL.get())).damage(),
+                    BallBehavior.profileFor(new net.minecraft.world.item.ItemStack(ModItems.IRON_BALL.get())).toughness());
+        }));
 
         // 「新球适配自检」不挂在这个阶段 —— 物品标签要等世界数据包加载完才可用。
         // 实测：挂在 FMLLoadCompleteEvent 上时标签仍是空的，自检会误报「球不在标签里」。

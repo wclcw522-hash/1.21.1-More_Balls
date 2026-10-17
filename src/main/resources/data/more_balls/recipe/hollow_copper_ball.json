@@ -1,8 +1,19 @@
 {
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "key": { "#": "minecraft:copper_ingot" },
-  "pattern": [ " # ", "# #", " # " ],
-  "result": { "count": 8, "id": "more_balls:hollow_copper_ball" },
-  "show_notification": false
+    "type":  "minecraft:crafting_shaped",
+    "category":  "misc",
+    "key":  {
+                "#":  [
+                          "minecraft:copper_ingot"
+                      ]
+            },
+    "pattern":  [
+                    " # ",
+                    "# #",
+                    " # "
+                ],
+    "result":  {
+                   "count":  8,
+                   "id":  "more_balls:hollow_copper_ball"
+               },
+    "show_notification":  false
 }

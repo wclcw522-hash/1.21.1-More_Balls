@@ -3210,6 +3210,10 @@ public class BallProjectile extends ThrowableItemProjectile {
     private void consumeDurability(String cause) {
         int toughness = this.getToughness();
         if (toughness == BallBehavior.TOUGH_FOREVER || toughness <= BallBehavior.NOT_TOUGH) {
+            // 诊断（2026-10-17 作者报「耐久系统未生效」）：这里是最容易静默失效的一步 ——
+            // 实体创建时若没把物品上的剩余耐久同步进来，toughness 就是 0，后续永远不扣。
+            MoreBalls.LOGGER.info("[ball] 扣耐久被跳过（{}）：实体 toughness={}（0=不坚固/-1=永久）",
+                    cause, toughness);
             return;
         }
         if (this.tickCount == this.lastDamageTick) {
@@ -3219,6 +3223,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         int remaining = Math.max(0, toughness - 1);
         this.setToughness(remaining);
+        MoreBalls.LOGGER.info("[ball] 扣耐久（{}）：{} -> {}/{}", cause, toughness, remaining,
+                this.profile().toughness());
 
         if (remaining == 0) {
             this.burst();

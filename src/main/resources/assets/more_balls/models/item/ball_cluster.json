@@ -1,3 +1,4 @@
 {
-  "parent": "more_balls:item/ball_cluster_base"
+  "__comment": "1.21.1 的 fallback 模型。真正的外观由 BallIconRenderer(BEWLR) 画（壳里那颗球），这里只是兜底 —— 原来指向 ball_cluster_base（1x1 空白贴图），一旦 BEWLR 失效整个物品在物品栏里就是隐形的，所以改成指向木球。",
+  "parent": "more_balls:item/wooden_ball"
 }

@@ -1,17 +1,19 @@
 {
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "key": {
-    "#": "#minecraft:planks"
-  },
-  "pattern": [
-    " # ",
-    "###",
-    " # "
-  ],
-  "result": {
-    "count": 8,
-    "id": "more_balls:wooden_ball"
-  },
-  "show_notification": false
+    "type":  "minecraft:crafting_shaped",
+    "category":  "misc",
+    "key":  {
+                "#":  [
+                          "#minecraft:planks"
+                      ]
+            },
+    "pattern":  [
+                    " # ",
+                    "###",
+                    " # "
+                ],
+    "result":  {
+                   "count":  8,
+                   "id":  "more_balls:wooden_ball"
+               },
+    "show_notification":  false
 }
