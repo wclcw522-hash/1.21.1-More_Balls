@@ -1,0 +1,303 @@
+package com.mcmodworkspace.moreballs;
+
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+
+/**
+ * 魔丸收纳袋的界面。
+ *
+ * <h2>布局</h2>
+ * <p>每行 9 格。上面若干行是<b>弹药格</b>（满耐久的球），下面若干行是<b>转运格</b>
+ * （用过的球）。行数随等级增长：</p>
+ *
+ * <table border="1">
+ *   <caption>各等级的行数与实际格数</caption>
+ *   <tr><th>级</th><th>每段格数</th><th>每段行数</th><th>末行用掉</th></tr>
+ *   <tr><td>1 皮革</td><td>9</td><td>1</td><td>9（满）</td></tr>
+ *   <tr><td>2 铁</td><td>12</td><td>2</td><td>3（右边 6 格盖住）</td></tr>
+ *   <tr><td>3 金</td><td>15</td><td>2</td><td>6（右边 3 格盖住）</td></tr>
+ *   <tr><td>4 绿宝石</td><td>18</td><td>2</td><td>9（满）</td></tr>
+ *   <tr><td>5 钻石</td><td>21</td><td>3</td><td>3（右边 6 格盖住）</td></tr>
+ *   <tr><td>6 黑曜石</td><td>24</td><td>3</td><td>6（右边 3 格盖住）</td></tr>
+ *   <tr><td>7 下界合金</td><td>27</td><td>3</td><td>9（满）</td></tr>
+ * </table>
+ *
+ * <p><b>上表只列弹药段</b>；转运段格数是它的两倍（18 / 24 / 30 / 36 / 42 / 48 / 54），
+ * 行数也相应翻倍（2 / 3 / 4 / 4 / 5 / 6 / 6），所以界面总高随等级变化。</p>
+ *
+ * <p><b>关键规则（作者指定）</b>：行数按实际格数向上取整，所以每段的行里可能<u>用不满</u>；
+ * 那些多出来的位置<b>照样占位</b>，但在界面上从右往左用银灰色盖住、并且禁止交互
+ * （靠 {@code Slot.isActive()} 返回 false 实现）。这样每一行始终是完整的 9 格宽度。</p>
+ *
+ * <h2>槽位限制</h2>
+ * <p>两段的 {@code mayPlace} 分开：弹药格只收满耐久的球、转运格只收用过的球。</p>
+ */
+public class BallPouchMenu extends AbstractContainerMenu {
+
+    /** 每行槽位数 */
+    public static final int COLUMNS = 9;
+
+    /** 弹药段距顶部的距离 —— 与原版箱子一致（标题栏 17 像素） */
+    private static final int AMMO_TOP = 17;
+
+    /**
+     * 两段之间的第二个标题区高度（同样是原版标题栏那 17 像素）。
+     *
+     * <p>作者指定的做法：界面等于「两个箱子 UI 叠起来」—— 上面一个带标题的槽位区、下面再来一个。
+     * 所以弹药段之后要先放一条标题区（写「中转区」），再排转运段。
+     * 这条标题区顺带就充当了两段之间的分隔线，不必另外画线。</p>
+     */
+    public static final int SECTION_TITLE_HEIGHT = 17;
+
+    /** 屏幕左右内边距 */
+    private static final int SIDE_PADDING = 8;
+
+    /** 原版容器里「槽位区结束」到「玩家背包开始」之间的间隔 */
+    private static final int PLAYER_GAP = 14;
+
+    /** 原版容器玩家区的高度（3 行背包 + 快捷栏 + 上下留白） */
+    private static final int PLAYER_AREA_HEIGHT = 96;
+
+    private final ItemStack pouch;
+    private final BallPouchTier tier;
+
+    /** 弹药段的实际行数 */
+    private final int ammoRows;
+
+    /** 转运段的实际行数 */
+    private final int transitRows;
+
+    /**
+     * 客户端构造：从网络包读回袋子物品堆。
+     *
+     * <h2>⚠️ 为什么要读一个「版本标记字节」并判空（作者 2026-10-16 报的联机崩溃）</h2>
+     * <p>NeoForge 的 {@code ServerPlayer.openMenu(provider, extraDataWriter)} 在
+     * <b>额外数据为空</b>时会退回原版 {@code ClientboundOpenScreenPacket} ——
+     * 那条路径下客户端工厂拿到的是 <b>{@code null}</b>（见 {@code IContainerFactory.create}
+     * 的默认实现），这里一句 {@code decode(buf)} 就是 NPE。</p>
+     *
+     * <p>而且客户端处理失败时 NeoForge 走的是 {@code context.disconnect(...)}
+     * —— 表现就是玩家被踢回主菜单、且<b>不产生带堆栈的崩溃报告</b>。
+     * 这与作者看到的「联机时只有非主机玩家出事、主机没事」正好吻合。</p>
+     *
+     * <p>所以两侧都上保险：<b>写侧</b>先写一个版本标记字节（保证额外数据永远非空），
+     * <b>读侧</b>先判空再读标记，读不到就退回空栈而不是崩。</p>
+     */
+    public BallPouchMenu(int windowId, Inventory inventory, RegistryFriendlyByteBuf buf) {
+        this(windowId, inventory, decodePouch(buf));
+    }
+
+    /** 收纳袋菜单额外数据的版本标记（写侧第一个字节，读侧先消费掉） */
+    public static final byte POUCH_MENU_DATA_VERSION = 1;
+
+    /** 从额外数据里读回袋子；数据缺失时退回空栈（宁可是空袋子，也不要 NPE 掉线） */
+    private static ItemStack decodePouch(RegistryFriendlyByteBuf buf) {
+        if (buf == null || buf.readableBytes() <= 0) {
+            MoreBalls.LOGGER.warn("[pouch] 打开菜单时没有收到袋子数据 —— "
+                    + "退回空袋子。若频繁出现，请检查 ServerPlayer.openMenu 的额外数据是否为空。");
+            return ItemStack.EMPTY;
+        }
+        buf.readByte();   // 版本标记（当前恒为 1；将来协议变了可以在这里分流）
+        return ItemStack.STREAM_CODEC.decode(buf);
+    }
+
+    /** 服务端构造（打开界面时用） */
+    public BallPouchMenu(int windowId, Inventory inventory, ItemStack pouch) {
+        super(ModMenus.BALL_POUCH.get(), windowId);
+        this.pouch = pouch;
+        this.tier = BallPouchItem.tier(pouch);
+
+        BallPouchContainer container = new BallPouchContainer(pouch);
+        this.ammoRows = rowsFor(this.tier.ammoSlots());
+        this.transitRows = rowsFor(this.tier.transitSlots());
+
+        // ① 弹药段 —— 按行占位，超出的格子禁用
+        int ammoPositions = this.ammoRows * COLUMNS;
+        for (int i = 0; i < ammoPositions; i++) {
+            boolean unlocked = i < this.tier.ammoSlots();
+            this.addSlot(new Slot(container, i,
+                    SIDE_PADDING + (i % COLUMNS) * 18,
+                    AMMO_TOP + (i / COLUMNS) * 18) {
+                @Override
+                public boolean isActive() {
+                    return unlocked;
+                }
+
+                @Override
+                public boolean mayPlace(ItemStack stack) {
+                    // 弹药段只收**满耐久的散球**。
+                    // 【球堆】不认 —— 壳里装的全是「用过」的球，本来就该待转运段。
+                    return unlocked && BallAmmo.isBall(stack) && BallPouchItem.isPristine(stack);
+                }
+            });
+        }
+
+        // ② 转运段 —— 前面先让出第二个标题区（写「中转区」），它同时就是两段的分隔
+        int transitTop = AMMO_TOP + this.ammoRows * 18 + SECTION_TITLE_HEIGHT;
+        int transitPositions = this.transitRows * COLUMNS;
+        for (int j = 0; j < transitPositions; j++) {
+            boolean unlocked = j < this.tier.transitSlots();
+            this.addSlot(new Slot(container, BallPouchContainer.AMMO_SLOTS + j,
+                    SIDE_PADDING + (j % COLUMNS) * 18,
+                    transitTop + (j / COLUMNS) * 18) {
+                @Override
+                public boolean isActive() {
+                    return unlocked;
+                }
+
+                @Override
+                public boolean mayPlace(ItemStack stack) {
+                    // 【球堆】转运段**要收壳**（作者 2026-10-15）。
+                    //
+                    // 转运段现在存的就是球堆 —— 用过的球按档合并成一格。
+                    // 不认壳的话，玩家手动从背包把壳拖进来会被拒，
+                    // 而壳正是「用过的球」在袋子里的形态。
+                    if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                        return unlocked;
+                    }
+                    return unlocked && BallAmmo.isBall(stack) && !BallPouchItem.isPristine(stack);
+                }
+            });
+        }
+
+        // ③ 玩家背包（3 行主背包 + 1 行快捷栏）
+        int playerTop = transitTop + this.transitRows * 18 + PLAYER_GAP;
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < COLUMNS; col++) {
+                this.addSlot(new Slot(inventory, col + row * COLUMNS + COLUMNS,
+                        SIDE_PADDING + col * 18, playerTop + row * 18));
+            }
+        }
+        int hotbarTop = playerTop + 3 * 18 + 4;
+        for (int col = 0; col < COLUMNS; col++) {
+            this.addSlot(new Slot(inventory, col, SIDE_PADDING + col * 18, hotbarTop));
+        }
+    }
+
+    /** 格数换算成行数（向上取整） */
+    private static int rowsFor(int slots) {
+        return (slots + COLUMNS - 1) / COLUMNS;
+    }
+
+    /** 袋子自身的槽位总数（含被盖住的位置） */
+    public int pouchSlotCount() {
+        return (this.ammoRows + this.transitRows) * COLUMNS;
+    }
+
+    /**
+     * 界面总高度 —— 两个标题区 + 两段槽位区 + 玩家区。
+     *
+     * <p>行数随等级变化，所以高度也跟着变；每段都补齐到整行，
+     * 所以槽位区永远是 9 的整数倍宽度。</p>
+     */
+    public int guiHeight() {
+        return AMMO_TOP
+                + this.ammoRows * 18
+                + SECTION_TITLE_HEIGHT
+                + this.transitRows * 18
+                + PLAYER_AREA_HEIGHT;
+    }
+
+    /** 弹药段顶部 y */
+    public int ammoTop() {
+        return AMMO_TOP;
+    }
+
+    /** 转运段顶部 y */
+    public int transitTop() {
+        return AMMO_TOP + this.ammoRows * 18 + SECTION_TITLE_HEIGHT;
+    }
+
+    /** 第二个标题区（「中转区」）的顶部 y */
+    public int sectionTitleTop() {
+        return AMMO_TOP + this.ammoRows * 18;
+    }
+
+    /** 弹药段行数 */
+    public int ammoRows() {
+        return this.ammoRows;
+    }
+
+    /** 转运段行数 */
+    public int transitRows() {
+        return this.transitRows;
+    }
+
+    public BallPouchTier tier() {
+        return this.tier;
+    }
+
+    public ItemStack pouch() {
+        return this.pouch;
+    }
+
+    @Override
+    public ItemStack quickMoveStack(Player player, int index) {
+        Slot slot = this.slots.get(index);
+        if (!slot.hasItem()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack stack = slot.getItem();
+        ItemStack original = stack.copy();
+        int pouchSlots = pouchSlotCount();
+
+        if (index < pouchSlots) {
+            // 从袋子往玩家背包搬
+            if (!this.moveItemStackTo(stack, pouchSlots, this.slots.size(), true)) {
+                return ItemStack.EMPTY;
+            }
+        } else {
+            // 从玩家背包往袋子里搬 —— 按「满耐久 / 用过」分流到对应的那一段
+            //
+            // 【球堆】壳（作者 2026-10-15）：壳里装的全是**用过的**球 → 直接进**转运段**。
+            // 不认壳的话 shift 搬运搬不动它，玩家只能手动一格一格拖。
+            if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                int transitFrom = this.ammoRows * COLUMNS;
+                if (!this.moveItemStackTo(stack, transitFrom, pouchSlots, false)) {
+                    return ItemStack.EMPTY;
+                }
+            } else {
+                if (!BallAmmo.isBall(stack)) {
+                    return ItemStack.EMPTY;
+                }
+                boolean toAmmo = BallPouchItem.isPristine(stack);
+                int from = toAmmo ? 0 : this.ammoRows * COLUMNS;
+                int to = toAmmo ? this.ammoRows * COLUMNS : pouchSlots;
+                if (!this.moveItemStackTo(stack, from, to, false)) {
+                    return ItemStack.EMPTY;
+                }
+            }
+        }
+
+        if (stack.isEmpty()) {
+            slot.setByPlayer(ItemStack.EMPTY);
+        } else {
+            slot.setChanged();
+        }
+        return original;
+    }
+
+    @Override
+    public boolean stillValid(Player player) {
+        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 副手 / 饰品栏都算）。
+        // 原先这里只查背包与主副手，从饰品栏（G 键）打开时每刻都被判「袋子不在了」，
+        // 于是界面刚开就被服务端 closeContainer() 关掉。
+        //
+        // ⚠️ 判据用「**同一个物品**」而不是「同一份组件」（作者 2026-10-16 报的
+        //    「界面突然关闭、吞掉关闭瞬间放进去的球」）：
+        //    袋子的内容就存在组件里，玩家往里放一颗球组件必然变 ——
+        //    用 isSameItemSameComponents 比，会在**放下去的那一瞬间**把界面判成失效，
+        //    服务端随即关界面，客户端那一格刚放进的球就跟着没了。
+        //    「界面该不该关」看的是「袋子还在不在身上」，与它的内容无关。
+        for (ItemStack stack : BallPouchHelper.allPouchStacks(player)) {
+            if (stack == this.pouch || ItemStack.isSameItem(stack, this.pouch)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

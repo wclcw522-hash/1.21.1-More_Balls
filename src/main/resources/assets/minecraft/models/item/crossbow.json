@@ -1,0 +1,33 @@
+{
+    "parent": "item/generated",
+    "textures": {
+        "layer0": "item/crossbow_standby"
+    },
+    "overrides": [
+        {"predicate": {"more_balls:charged_ball": 100.0}, "model": "more_balls:item/crossbow_ball_combo_ball"},
+        {"predicate": {"pulling": 1}, "model": "item/crossbow_pulling_0"},
+        {"predicate": {"pulling": 1, "pull": 0.58}, "model": "item/crossbow_pulling_1"},
+        {"predicate": {"pulling": 1, "pull": 1.0}, "model": "item/crossbow_pulling_2"},
+        {"predicate": {"charged": 1}, "model": "item/crossbow_arrow"},
+        {"predicate": {"charged": 1, "firework": 1}, "model": "item/crossbow_firework"},
+        {"predicate": {"more_balls:charged_ball": 19}, "model": "more_balls:item/crossbow_ball_echo_ball"},
+        {"predicate": {"more_balls:charged_ball": 18}, "model": "more_balls:item/crossbow_ball_talisman_ball"},
+        {"predicate": {"more_balls:charged_ball": 17}, "model": "more_balls:item/crossbow_ball_preserve_ball"},
+        {"predicate": {"more_balls:charged_ball": 16}, "model": "more_balls:item/crossbow_ball_dripstone_ball"},
+        {"predicate": {"more_balls:charged_ball": 15}, "model": "more_balls:item/crossbow_ball_emerald_ball"},
+        {"predicate": {"more_balls:charged_ball": 14}, "model": "more_balls:item/crossbow_ball_slime_ball"},
+        {"predicate": {"more_balls:charged_ball": 13}, "model": "more_balls:item/crossbow_ball_tidal_ball"},
+        {"predicate": {"more_balls:charged_ball": 12}, "model": "more_balls:item/crossbow_ball_ender_pearl"},
+        {"predicate": {"more_balls:charged_ball": 11}, "model": "more_balls:item/crossbow_ball_lapis_ball"},
+        {"predicate": {"more_balls:charged_ball": 10}, "model": "more_balls:item/crossbow_ball_diamond_ball"},
+        {"predicate": {"more_balls:charged_ball": 9}, "model": "more_balls:item/crossbow_ball_redstone_ball"},
+        {"predicate": {"more_balls:charged_ball": 8}, "model": "more_balls:item/crossbow_ball_hollow_copper_ball"},
+        {"predicate": {"more_balls:charged_ball": 7}, "model": "more_balls:item/crossbow_ball_copper_ball"},
+        {"predicate": {"more_balls:charged_ball": 6}, "model": "more_balls:item/crossbow_ball_amethyst_ball"},
+        {"predicate": {"more_balls:charged_ball": 5}, "model": "more_balls:item/crossbow_ball_hollow_iron_ball"},
+        {"predicate": {"more_balls:charged_ball": 4}, "model": "more_balls:item/crossbow_ball_gold_ball"},
+        {"predicate": {"more_balls:charged_ball": 3}, "model": "more_balls:item/crossbow_ball_iron_ball"},
+        {"predicate": {"more_balls:charged_ball": 2}, "model": "more_balls:item/crossbow_ball_cobblestone_ball"},
+        {"predicate": {"more_balls:charged_ball": 1}, "model": "more_balls:item/crossbow_ball_wooden_ball"}
+    ]
+}

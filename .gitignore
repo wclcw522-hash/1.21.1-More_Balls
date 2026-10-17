@@ -1,0 +1,28 @@
+# Gradle / 构建产物
+build/
+.gradle/
+run/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 日志与崩溃报告
+*.log
+crash-reports/
+logs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# 本机移植用的暂存区（26.2 原样代码，仅供对照，不对外）
+_port-stash/
+
+# AI 规程文件不上传（作者指定）
+AGENTS.md
+
+# Windows
+Thumbs.db
+desktop.ini
