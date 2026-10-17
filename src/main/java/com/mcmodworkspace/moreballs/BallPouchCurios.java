@@ -44,6 +44,22 @@ public final class BallPouchCurios {
         return ModList.get().isLoaded(CURIOS_ID);
     }
 
+    /**
+     * 建一个收纳袋实例：装了 Curios 就用带饰品能力的那版，没装就用普通版。
+     *
+     * <p>⚠️ <b>为什么这句不能直接写在 {@code ModItems.registerPouch} 里</b>：
+     * 那里出现 {@code new BallPouchCurioItem(...)} 的话，JVM 链接 {@code ModItems} 时做类型检查
+     * 就会加载那个类（它 {@code implements ICurioItem}），于是没装 Curios 的实例直接
+     * {@code NoClassDefFoundError} 崩在 {@code MoreBalls.<init>} —— 2026-10-17 实际踩到。
+     * 具体经过写在 {@link BallPouchCurioFactory} 的类注释里。</p>
+     */
+    public static BallPouchItem createItem(net.minecraft.world.item.Item.Properties props, BallPouchTier tier) {
+        if (!isLoaded()) {
+            return new BallPouchItem(props, tier);
+        }
+        return BallPouchCurioFactory.create(props, tier);
+    }
+
     // ===== 找佩戴的袋子 =====
 
     /**

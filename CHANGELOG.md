@@ -4,6 +4,43 @@
 > 版本号从 `1.0.0.0` 起独立计数，四段式 `x.x.x.x`（功能 / 机制 / 物品 / 修复）。
 > 26.2 线的历史见另一个仓库的 `CHANGELOG.md`。
 
+## [1.0.0.1] - 2026-10-17
+
+### 修复：没装 Curios 的实例一启动就崩
+
+**现象**：`java.lang.NoClassDefFoundError: top/theillusivec4/curios/api/type/capability/ICurioItem`，
+堆栈指向 `com.mcmodworkspace.moreballs.MoreBalls.<init>(MoreBalls.java:24)` →
+`ModItems.register(...)`，崩在 mod 构造阶段（`crash-...-fml.txt`，Failure message 是
+`[更多球] More_Balls (more_balls) has failed to load correctly`）。
+
+**根因**：`ModItems.registerPouch` 里原本写着
+
+```java
+props -> BallPouchCurios.isLoaded()
+        ? new BallPouchCurioItem(props.stacksTo(1), tier)
+        : new BallPouchItem(props.stacksTo(1), tier)
+```
+
+看着有 `isLoaded()` 保护、false 分支根本不会构造那个类。<b>但字节码验证不看分支会不会走</b>：
+JVM 链接 `ModItems` 时要检验 `new BallPouchCurioItem(...)` 的结果能否兼容三元表达式的公共类型
+`Item`，于是必须把 `BallPouchCurioItem` 加载进来；那个类 `implements ICurioItem` ⇒
+立刻要求 Curios 的类 ⇒ 没装 Curios 就崩。
+
+**为什么一直没暴露**：开发环境的 `localRuntime` 里一直有 Curios，26.2 线的测试实例也装了
+Curios，所以这条路径从没被走过。换到没装 Curios 的干净 1.21.1 实例立刻炸。
+
+**修法**：
+- 新增 `BallPouchCurioFactory`（不 import 任何 Curios 类型），把 `new BallPouchCurioItem(...)` 搬进去
+- `BallPouchCurios.createItem(props, tier)` 只在 `isLoaded()` 为真时才调它
+- `ModItems.registerPouch` 改成 `props -> BallPouchCurios.createItem(props.stacksTo(1), tier)`
+
+**验证**：临时把 Curios 从 `localRuntime` 移除（复现「玩家没装 Curios」的环境）跑 `runClient` ——
+`[更多球] More_Balls` 正常注册、无 `NoClassDefFoundError`、mod 相关 ERROR 为 0；
+验证后已恢复 `localRuntime`（开发环境仍要加载 Curios 才能调饰品功能）。
+
+> 这条也提醒了以后加第三方软依赖的做法：**光把调用放进 `if (isLoaded())` 分支不够**，
+> 真正带第三方接口的 `new` / 类型引用必须再隔一层类，否则类链接阶段就会被解析。
+
 ## [1.0.0.0] - 2026-10-17
 
 **1.21.1 版本线建立 —— 从 26.2 完整移植。**

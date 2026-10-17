@@ -386,15 +386,19 @@ public final class ModItems {
      * <p>物品 id 就是等级的资源名（皮革那件叫 {@code ball_pouch}）。</p>
      *
      * <p><b>装了 Curios 就用带饰品能力的那个类，没装就用普通的</b> ——
-     * {@code BallPouchCurioItem} 引用了 Curios 的接口，所以它只有 Curios 在场时才能加载。
-     * 三元表达式在 false 分支上不会构造它，JVM 也就不会去解析那个类，
-     * 于是没装 Curios 的玩家完全不受影响。这是「第三方依赖只用 compileOnly + 运行时判断」
-     * 那条规范的具体落地。</p>
+     * 具体分派交给 {@link BallPouchCurios#createItem}，真正的 {@code new BallPouchCurioItem(...)}
+     * 藏在 {@link BallPouchCurioFactory} 里。</p>
+     *
+     * <p>⚠️⚠️ <b>这里绝不能直接写 {@code new BallPouchCurioItem(...)}</b>，哪怕放在
+     * {@code isLoaded()} 的 false 分支里也不行：<b>字节码验证不看分支会不会走</b>，
+     * JVM 链接本类时会为了做类型检查而加载那个类，进而要求
+     * {@code top.theillusivec4.curios.api.type.capability.ICurioItem} ——
+     * 没装 Curios 的实例就会崩在 {@code MoreBalls.<init>}（2026-10-17 实际踩到，
+     * 完整经过记在 {@link BallPouchCurioFactory} 的类注释里）。</p>
      */
     private static DeferredItem<Item> registerPouch(BallPouchTier tier) {
-        return ITEMS.registerItem(tier.id(), props -> BallPouchCurios.isLoaded()
-                ? new BallPouchCurioItem(props.stacksTo(1), tier)
-                : new BallPouchItem(props.stacksTo(1), tier));
+        return ITEMS.registerItem(tier.id(),
+                props -> BallPouchCurios.createItem(props.stacksTo(1), tier));
     }
 
     /** 按等级取对应的那件收纳袋 */
